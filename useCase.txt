@@ -1,0 +1,50 @@
+Use Case: React + Vite Migration & 3D Viewer Enhancement
+Bu plan, mevcut <model-viewer> tabanlı statik yapıyı modern, ölçeklenebilir ve yüksek performanslı bir React + Vite uygulamasına dönüştürmeyi kapsar.
+
+User Review Required
+IMPORTANT
+
+Mevcut 
+index.html
+ ve 
+embed.html
+ dosyaları, React bileşenlerine (Viewer3D ve EmbedViewer) dönüştürülecektir. 3D motoru olarak React Three Fiber kullanılacaktır; bu sayede sağa-sola hareket (panning) ve gelişmiş export özellikleri çok daha esnek bir şekilde uygulanabilir.
+
+Proposed Changes
+[Frontend Architecture]
+Snap3D Viewer'ın React'e geçişi şu modern kütüphanelerle desteklenecektir:
+
+Vite: Ultra hızlı geliştirme ortamı ve bundle yönetimi.
+React Three Fiber (R3F): Three.js'in React deklaratif yapısı.
+Drei: 3D sahne için hazır yardımcılar (OrbitControls, Stage, BakeShadows).
+Framer Motion: Premium UI geçişleri ve animasyonlar.
+[3D Scene & Controls]
+Mevcut model-viewer kısıtlamalarını aşmak için:
+
+OrbitControls: "Sağa sola efektik hareket" (Panning) ve "Zoom in/out" özellikleri için tam kontrol sağlar. Sağ tık veya iki parmak ile sürükleme (pan) desteği eklenecek.
+Post-processing: Sahneye derinlik katmak için Bloom veya Ambient Occlusion efektleri eklenebilir.
+Environment Management: Farklı ışıklandırma modları (Studio, Park, Warehouse) dinamik olarak seçilebilecek.
+[Component Structure]
+[NEW] 
+Viewer3D.tsx
+Ana 3D sahne bileşeni. Modeli yükler, OrbitControls yönetir ve sahne efektlerini uygular.
+
+[NEW] 
+ExportPanel.tsx
+"GLB Export Ekranı". Modeli farklı varyasyonlarda kaydetme ve sahne bilgisini indirme imkanı sunar.
+
+[NEW] 
+App.tsx
+Ana uygulama katmanı, dosya yükleme (drag & drop) ve UI yönetimini sağlar.
+
+Verification Plan
+Automated Tests
+npm run dev ile projenin ayağa kalktığının doğrulanması.
+GLB dosyasının R3F tarafından hatasız render edildiğinin kontrolü.
+Manual Verification
+Movement Check: Mouse ile orbit, sağ tık ile pan (sağa/sola kaydırma) ve scroll ile zoom test edilecek.
+Export Check: Export butonuna tıklandığında geçerli bir GLB dosyasının inip inmediği Meshroom veya Blender ile doğrulanacak.
+Responsive Check: Mobil cihazlarda zoom ve döndürme hareketlerinin doğruluğu.
+
+Comment
+Ctrl+Alt+M
