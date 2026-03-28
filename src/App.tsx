@@ -1,34 +1,74 @@
-import { useState, useCallback, useRef } from 'react'
-import { Viewer3D } from './components/Viewer3D'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { ThreeViewer } from './components/ThreeViewer'
+import { ExportPanel } from './components/ExportPanel'
 import { Upload, HelpCircle, Box } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import * as THREE from 'three'
 import './index.css'
 
 function App() {
   const [modelUrl, setModelUrl] = useState<string | null>(null)
+  const [modelName, setModelName] = useState<string | null>(null)
+  const [scene, setScene] = useState<THREE.Scene | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [environment, setEnvironment] = useState<"city" | "park" | "studio" | "warehouse" | "sunset">('city')
-  const [bloom, setBloom] = useState(false)
-  const [ssao, setSsao] = useState(false)
+  const [exposure, setExposure] = useState(1.0)
+  const [shadows, setShadows] = useState(true)
+  const [envIntensity, setEnvIntensity] = useState(1.0)
+  const [bgColor, setBgColor] = useState('#111111')
+  const [autoRotate, setAutoRotate] = useState(false)
+  const [wireframe, setWireframe] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((file: File) => {
-    if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf'))) {
+    console.log('File received in App:', file.name)
+    const fileName = file.name.toLowerCase()
+    const isSupported = fileName.endsWith('.glb') || 
+                       fileName.endsWith('.gltf') || 
+                       fileName.endsWith('.usdz') || 
+                       fileName.endsWith('.zip')
+
+    if (file && isSupported) {
       const url = URL.createObjectURL(file)
-      setModelUrl(url)
+      console.log('Created blob URL:', url)
+      setModelName(file.name)
+      setModelUrl((prevUrl) => {
+        if (prevUrl && prevUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(prevUrl)
+        }
+        return url
+      })
+    } else {
+      console.warn('Invalid file type:', file?.name)
     }
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (modelUrl && modelUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(modelUrl)
+      }
+    }
+  }, [modelUrl])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
+    console.log('Drop event detected')
     const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
+    if (file) {
+      console.log('File from drop:', file.name)
+      handleFile(file)
+    }
   }, [handleFile])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Input change detected')
     const file = e.target.files?.[0]
-    if (file) handleFile(file)
+    if (file) {
+      console.log('File from input:', file.name)
+      handleFile(file)
+    }
   }
 
   const triggerUpload = () => {
@@ -44,6 +84,14 @@ function App() {
     setIsDragging(false)
   }
 
+  const handleReset = () => {
+    if (modelUrl && modelUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(modelUrl)
+    }
+    setModelUrl(null)
+    setModelName(null)
+  }
+
   return (
     <div 
       className="app-container" 
@@ -55,7 +103,7 @@ function App() {
         type="file" 
         ref={fileInputRef} 
         onChange={handleInputChange} 
-        accept=".glb,.gltf" 
+        accept=".glb,.gltf,.zip" 
         style={{ display: 'none' }} 
       />
 
@@ -64,9 +112,18 @@ function App() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}
         >
-          <h1>Snap3D Viewer</h1>
-          <p>Modern GLB/GLTF Visualization Engine</p>
+          <div>
+            <h1>Snap3D Viewer</h1>
+            <p>Modern GLB/GLTF/USDZ Visualization Engine</p>
+          </div>
+          {modelUrl && (
+            <button className="reset-button" onClick={handleReset}>
+              <Upload size={16} />
+              Yeni Model
+            </button>
+          )}
         </motion.div>
       </header>
 
@@ -76,48 +133,81 @@ function App() {
         <p>Scroll to Zoom</p>
       </div>
 
-      <Viewer3D 
-        modelUrl={modelUrl} 
-        environmentPreset={environment}
-        enableBloom={bloom}
-        enableSsao={ssao}
-      />
+      <div className="canvas-container">
+        <ErrorBoundary>
+          <ThreeViewer 
+            modelUrl={modelUrl} 
+            modelName={modelName}
+            onSceneReady={setScene}
+            exposure={exposure}
+            shadows={shadows}
+            envIntensity={envIntensity}
+            bgColor={bgColor}
+            autoRotate={autoRotate}
+            wireframe={wireframe}
+          />
+        </ErrorBoundary>
+      </div>
 
       <AnimatePresence>
         {modelUrl && (
           <motion.div 
-            className="ui-overlay"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
+            className="overlay-container" 
           >
-            <div className="controls-group">
-              <select 
-                value={environment} 
-                onChange={(e) => setEnvironment(e.target.value as "city" | "park" | "studio" | "warehouse" | "sunset")}
-                className="premium-select"
-              >
-                <option value="city">City</option>
-                <option value="park">Park</option>
-                <option value="studio">Studio</option>
-                <option value="warehouse">Warehouse</option>
-                <option value="sunset">Sunset</option>
-              </select>
-              
-              <button 
-                onClick={() => setBloom(!bloom)} 
-                className={`toggle-button ${bloom ? 'active' : ''}`}
-              >
-                Bloom
-              </button>
-              
-              <button 
-                onClick={() => setSsao(!ssao)} 
-                className={`toggle-button ${ssao ? 'active' : ''}`}
-              >
-                SSAO
-              </button>
+            <div className="controls-panel">
+              <div className="control-row">
+                <div className="control-item">
+                  <label>IŞIK ŞİDDETİ (EXPOSURE)</label>
+                  <input 
+                    type="range" min="0" max="3" step="0.1" 
+                    value={exposure} onChange={(e) => setExposure(parseFloat(e.target.value))} 
+                  />
+                  <span>{exposure.toFixed(1)}</span>
+                </div>
+                <div className="control-item">
+                  <label>YANSIMA (REFLECTIONS)</label>
+                  <input 
+                    type="range" min="0" max="5" step="0.1" 
+                    value={envIntensity} onChange={(e) => setEnvIntensity(parseFloat(e.target.value))} 
+                  />
+                  <span>{envIntensity.toFixed(1)}</span>
+                </div>
+              </div>
+
+              <div className="control-row secondary">
+                <div className="control-item">
+                  <label>ARKA PLAN</label>
+                  <input 
+                    type="color" 
+                    value={bgColor} onChange={(e) => setBgColor(e.target.value)} 
+                  />
+                </div>
+                <div className="control-item toggle">
+                  <label>GÖLGE</label>
+                  <input 
+                    type="checkbox" 
+                    checked={shadows} onChange={(e) => setShadows(e.target.checked)} 
+                  />
+                </div>
+                <div className="control-item toggle">
+                  <label>DÖNDÜR</label>
+                  <input 
+                    type="checkbox" 
+                    checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} 
+                  />
+                </div>
+                <div className="control-item toggle">
+                  <label>KAFES</label>
+                  <input 
+                    type="checkbox" 
+                    checked={wireframe} onChange={(e) => setWireframe(e.target.checked)} 
+                  />
+                </div>
+              </div>
             </div>
+            <ExportPanel scene={scene} />
           </motion.div>
         )}
       </AnimatePresence>

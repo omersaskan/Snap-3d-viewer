@@ -33,13 +33,25 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.canvas-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .header {
   position: absolute;
   top: 2rem;
   left: 2rem;
-  z-index: 10;
+  right: 2rem;
+  z-index: 100;
   pointer-events: none;
 }
 
@@ -60,20 +72,36 @@ body {
   color: #666;
 }
 
-.ui-overlay {
-  position: absolute;
-  bottom: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
+.reset-button {
   display: flex;
-  gap: 1rem;
-  padding: 0.5rem;
-  background: rgba(20, 20, 20, 0.6);
-  backdrop-filter: blur(12px);
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
 }
+
+.reset-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+}
+
+.reset-button svg {
+  opacity: 0.7;
+}
+
 
 .premium-button {
   display: flex;
@@ -97,6 +125,24 @@ body {
 
 .premium-button:active {
   transform: translateY(0);
+}
+
+.premium-button.usdz {
+  background: linear-gradient(135deg, #5AC8FA, #007AFF);
+  color: white;
+}
+
+.premium-button.usdz:hover {
+  box-shadow: 0 10px 20px rgba(0, 122, 255, 0.3);
+}
+
+.export-group {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.export-panel {
+  display: block;
 }
 
 .drop-zone {
@@ -155,56 +201,189 @@ body {
     top: 1rem;
     left: 1rem;
   }
-  .ui-overlay {
-    bottom: 1rem;
-    width: calc(100% - 2rem);
-    justify-content: center;
+  .instructions {
+    display: none;
+  }
+  .export-panel {
+    top: 1rem;
+    right: 1rem;
+  }
+  .export-group {
+    scale: 0.9;
   }
 }
 
-.controls-group {
+.premium-select, .toggle-button {
+  display: none;
+}
+
+.loader-container {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
   align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 200px;
+  pointer-events: none;
 }
 
-.premium-select {
-  background: rgba(40, 40, 40, 0.8);
+.loader-bar-bg {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loader-bar-fill {
+  height: 100%;
+  background: white;
+  transition: width 0.3s ease-out;
+}
+
+.loader-container p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.6rem 1rem;
-  border-radius: 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s;
+  letter-spacing: 0.1rem;
 }
 
-.premium-select:hover {
-  background: rgba(60, 60, 60, 0.8);
-  border-color: rgba(255, 255, 255, 0.2);
+/* Error Boundary Styles */
+.error-boundary-fallback {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #050505;
+  color: white;
+  text-align: center;
+  padding: 2rem;
 }
 
-.toggle-button {
-  background: rgba(40, 40, 40, 0.8);
-  color: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.6rem 1rem;
-  border-radius: 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+.error-boundary-fallback h2 {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #ff4b2b 0%, #ff416c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.toggle-button.active {
+.error-boundary-fallback p {
+  color: #888;
+  margin-bottom: 2rem;
+}
+
+.error-boundary-fallback button {
+  padding: 0.75rem 2rem;
   background: white;
   color: black;
-  border-color: white;
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
 }
 
-.toggle-button:hover:not(.active) {
-  background: rgba(60, 60, 60, 0.8);
-  color: white;
+.error-boundary-fallback button:hover {
+  transform: scale(1.05);
+}
+
+.controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(16px);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: 1rem;
+  min-width: 320px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.control-row.secondary {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.control-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control-item.toggle {
+  align-items: center;
+  text-align: center;
+}
+
+.control-item label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  white-space: nowrap;
+}
+
+.control-item input[type="range"] {
+  width: 100%;
+  accent-color: #fff;
+  cursor: pointer;
+}
+
+.control-item span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: right;
+  color: #fff;
+  font-family: monospace;
+}
+
+.control-item input[type="color"] {
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.control-item input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+  accent-color: #fff;
+}
+
+.overlay-container {
+  position: absolute;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.overlay-container > * {
+  pointer-events: auto;
 }
