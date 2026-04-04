@@ -7,17 +7,33 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import * as THREE from 'three'
 import './index.css'
 
+const getProxiedUrl = (url: string | null) => {
+  if (!url || url.startsWith('blob:') || url.startsWith('data:')) return url
+  // Use AllOrigins as a CORS proxy for remote URLs
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+}
+
 function App() {
-  const [modelUrl, setModelUrl] = useState<string | null>(null)
-  const [modelName, setModelName] = useState<string | null>(null)
+  const [modelUrl, setModelUrl] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return getProxiedUrl(params.get('model'))
+  })
+  const [modelName, setModelName] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const modelParam = params.get('model')
+    return modelParam ? (modelParam.split('/').pop()?.split('?')[0] || 'Model') : null
+  })
   const [scene, setScene] = useState<THREE.Scene | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [exposure, setExposure] = useState(1.0)
   const [shadows, setShadows] = useState(true)
   const [envIntensity, setEnvIntensity] = useState(1.0)
   const [bgColor, setBgColor] = useState('#111111')
   const [autoRotate, setAutoRotate] = useState(false)
   const [wireframe, setWireframe] = useState(false)
+  const [urlInputValue, setUrlInputValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((file: File) => {
@@ -50,6 +66,104 @@ function App() {
       }
     }
   }, [modelUrl])
+
+  const loadModelFromUrl = useCallback(async (url: string) => {
+    setIsLoading(true)
+    setError(null)
+    console.log('Fetching model from:', url)
+
+    try {
+      // 1. Try fetching directly
+      let response;
+      try {
+        response = await fetch(url)
+      } catch (e) {
+        console.warn('Direct fetch failed, trying proxy...', e)
+        // 2. Try proxy fallback (AllOrigins)
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+        response = await fetch(proxyUrl)
+      }
+
+      if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`)
+
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const fileName = url.split('/').pop()?.split('?')[0] || 'Model'
+      
+      setModelUrl(blobUrl)
+      setModelName(fileName)
+    } catch (err: unknown) {
+      console.error('Error loading model from URL:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      setError(`Model yüklenemedi: ${message}. Lütfen linkin geçerli ve erişilebilir olduğundan emin olun.`)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const loadModelFromJobId = useCallback(async (jobId: string) => {
+    setIsLoading(true)
+    setError(null)
+    console.log('Fetching job details for:', jobId)
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const apiKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !apiKey) {
+        throw new Error('Supabase configuration is missing in environments.')
+      }
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/jobs?id=eq.${jobId}&select=*`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`
+        }
+      })
+
+      if (!response.ok) throw new Error(`Failed to fetch job details: ${response.statusText}`)
+
+      const jobs = await response.json()
+      
+      if (!jobs || jobs.length === 0) {
+        throw new Error('İlgili iş (job) bulunamadı.')
+      }
+
+      const job = jobs[0]
+      const glbUrl = job.assets?.modelUrls?.glbUrl
+
+      if (!glbUrl) {
+        throw new Error('Model URL si (glbUrl) bulunamadı.')
+      }
+
+      await loadModelFromUrl(glbUrl)
+    } catch (err: unknown) {
+      console.error('Error loading job:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      setError(`Model getirilemedi: ${message}`)
+      setIsLoading(false)
+    }
+  }, [loadModelFromUrl])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const modelParam = params.get('model')
+    const jobIdParam = params.get('job_id')
+    
+    if (jobIdParam) {
+      loadModelFromJobId(jobIdParam)
+    } else if (modelParam) {
+      loadModelFromUrl(modelParam)
+    }
+  }, [loadModelFromUrl, loadModelFromJobId])
+
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (urlInputValue.trim()) {
+      loadModelFromUrl(urlInputValue)
+      setUrlInputValue('')
+    }
+  }
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -229,13 +343,41 @@ function App() {
           className="drop-zone active"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          onClick={triggerUpload}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'default' }}
         >
           <div className="drop-zone-content" style={{ opacity: 1, transform: 'scale(1)', border: 'none' }}>
             <Box className="upload-icon" size={64} style={{ opacity: 0.2 }} />
             <h2 style={{ opacity: 0.5 }}>Snap3D</h2>
-            <p style={{ opacity: 0.3 }}>Click or drag a file anywhere to begin</p>
+            <p style={{ opacity: 0.3 }}>Drag a file anywhere or enter a URL below</p>
+            
+            <form onSubmit={handleUrlSubmit} className="url-input-form" onClick={(e) => e.stopPropagation()}>
+              <input 
+                type="text" 
+                placeholder="https://example.com/model.glb" 
+                value={urlInputValue}
+                onChange={(e) => setUrlInputValue(e.target.value)}
+                className="url-input"
+                disabled={isLoading}
+              />
+              <button type="submit" className="url-submit-button" disabled={isLoading}>
+                {isLoading ? 'Yükleniyor...' : 'Load Model'}
+              </button>
+            </form>
+
+            {error && (
+              <p className="error-message" style={{ color: '#ff4b2b', fontSize: '0.8rem', marginTop: '1rem', fontWeight: 600 }}>
+                {error}
+              </p>
+            )}
+
+            <div className="upload-divider">
+              <span>OR</span>
+            </div>
+
+            <button className="premium-button" onClick={triggerUpload}>
+              <Upload size={18} />
+              Choose Local File
+            </button>
           </div>
         </motion.div>
       )}
