@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Premium AR Experience</title>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.147.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.147.0/examples/jsm/",
+        "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"
+      }
+    }
+    </script>
+    <style>
+      :root {
+        --accent: hsl(210, 100%, 60%);
+        --bg-glass: rgba(15, 15, 20, 0.7);
+        --text: #ffffff;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: 'Outfit', sans-serif;
+        background-color: #000;
+        color: var(--text);
+      }
+      #container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+      #ui-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 30px;
+        box-sizing: border-box;
+        z-index: 10;
+        transition: opacity 0.5s ease;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .badge {
+        background: var(--bg-glass);
+        backdrop-filter: blur(10px);
+        padding: 8px 16px;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .instructions {
+        background: var(--bg-glass);
+        backdrop-filter: blur(15px);
+        padding: 24px;
+        border-radius: 24px;
+        text-align: center;
+        max-width: 320px;
+        margin: 0 auto 40px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transform: translateY(0);
+        animation: float 3s ease-in-out infinite;
+        pointer-events: auto;
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+      .scanning-line {
+        position: absolute;
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        box-shadow: 0 0 15px var(--accent);
+        opacity: 0.3;
+        top: 0;
+        animation: scan-soft 4s ease-in-out infinite;
+      }
+      @keyframes scan-soft {
+        0%, 100% { top: 20%; opacity: 0; }
+        50% { top: 80%; opacity: 0.4; }
+      }
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .loader {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: rotation 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+      }
+      @keyframes rotation {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #close-btn {
+        position: fixed;
+        top: 30px;
+        right: 30px;
+        z-index: 1000;
+        background: #ff3b30;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        backdrop-filter: blur(10px);
+        pointer-events: auto;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      }
+    </style>
+  </head>
+  <body>
+    <button id="close-btn">Geri Dön</button>
+
+    <div id="loading-screen" class="loading-screen">
+      <div class="loader"></div>
+      <p id="status-text" style="margin-top: 24px; font-weight: 300; letter-spacing: 4px; font-size: 0.8rem; text-transform: uppercase; opacity: 0.7;">Verifying System...</p>
+      <div id="mini-log" style="position: absolute; bottom: 20px; font-family: monospace; font-size: 10px; opacity: 0.4; max-width: 80%; text-align: center;"></div>
+    </div>
+
+    <div id="ui-overlay">
+      <div class="header">
+        <div class="badge">System Online</div>
+        <div class="badge" style="color: var(--accent); border-color: var(--accent)">Tracking</div>
+      </div>
+      
+      <div class="scanning-line"></div>
+
+      <div class="instructions">
+        <h3 style="margin: 0 0 8px 0; font-weight: 600; font-size: 1.2rem;">Ready to Scan</h3>
+        <p style="margin: 0; font-size: 0.9rem; opacity: 0.7; line-height: 1.5;">Kamerayı hazırladığın marker'a doğrult. <br><b>Modeli döndürmek için parmağını kaydır!</b></p>
+      </div>
+    </div>
+
+    <div id="container"></div>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+      import { MindARThree } from 'mindar-image-three';
+
+      const queryParams = new URLSearchParams(window.location.search);
+      const modelUrl = queryParams.get('model');
+      
+      document.getElementById('close-btn').addEventListener('click', () => {
+        if (window.parent !== window) {
+          window.parent.postMessage('close-ar', '*');
+        } else {
+          window.location.href = '/';
+        }
+      });
+
+      const log = (msg) => {
+        console.log(msg);
+        const logEl = document.getElementById('mini-log');
+        if (logEl) logEl.innerText = msg;
+      };
+
+      const init = async () => {
+        try {
+          if (!modelUrl) {
+            log("Hata: Model bulunamadı!");
+            document.getElementById('status-text').innerText = "MODEL URL EKSİK!";
+            return;
+          }
+
+          log("AR Motoru Başlatılıyor...");
+          const mindarThree = new MindARThree({
+            container: document.querySelector("#container"),
+            imageTargetSrc: '/assets/targets.mind?v=' + Date.now(),
+          });
+
+          const {renderer, scene, camera} = mindarThree;
+
+          renderer.setPixelRatio(window.devicePixelRatio);
+          renderer.setSize(window.innerWidth, window.innerHeight);
+
+          scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+          const directorLight = new THREE.DirectionalLight(0xffffff, 1.2);
+          directorLight.position.set(2, 5, 2);
+          scene.add(directorLight);
+
+          log("Model Yükleniyor...");
+          const loader = new GLTFLoader();
+          const statusText = document.getElementById("status-text");
+          let modelRef = null;
+
+          loader.load(
+            modelUrl, 
+            (gltf) => {
+              const anchor = mindarThree.addAnchor(0);
+              anchor.onTargetFound = () => document.getElementById('ui-overlay').classList.add('hidden');
+              anchor.onTargetLost = () => document.getElementById('ui-overlay').classList.remove('hidden');
+
+              modelRef = gltf.scene;
+              modelRef.traverse((node) => { if (node.isMesh) node.frustumCulled = false; });
+              anchor.group.add(modelRef);
+              
+              statusText.innerText = "SİSTEM HAZIR";
+              setTimeout(() => {
+                document.getElementById('loading-screen').classList.add('hidden');
+              }, 800);
+            },
+            (xhr) => {
+              if (xhr.lengthComputable) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                statusText.innerText = `YÜKLENİYOR: %${percent}`;
+              }
+            },
+            (error) => {
+               log("Model Yükleme Hatası!");
+               statusText.innerText = "MODEL HATASI!";
+            }
+          );
+
+          // Interaction
+          let isDragging = false, prevX = 0, prevY = 0;
+          document.addEventListener('touchstart', (e) => { isDragging = true; prevX = e.touches[0].clientX; prevY = e.touches[0].clientY; });
+          document.addEventListener('touchmove', (e) => {
+            if (!isDragging || !modelRef) return;
+            const dx = e.touches[0].clientX - prevX;
+            const dy = e.touches[0].clientY - prevY;
+            modelRef.rotation.x += dy * 0.01;
+            modelRef.rotation.y += dx * 0.01; 
+            prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
+          });
+          document.addEventListener('touchend', () => isDragging = false);
+
+          await mindarThree.start();
+          renderer.setAnimationLoop(() => { renderer.render(scene, camera); });
+
+        } catch (err) {
+          log("Hata: " + err.message);
+          console.error(err);
+        }
+      };
+
+      init();
+    </script>
+  </body>
+</html>

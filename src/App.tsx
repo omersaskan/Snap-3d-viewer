@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ThreeViewer } from './components/ThreeViewer'
 import { ExportPanel } from './components/ExportPanel'
-import { Upload, HelpCircle, Box } from 'lucide-react'
+import { Upload, HelpCircle, Box, Camera } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ARView } from './components/ARView'
 import * as THREE from 'three'
 import './index.css'
 
@@ -34,6 +35,7 @@ function App() {
   const [autoRotate, setAutoRotate] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [urlInputValue, setUrlInputValue] = useState('')
+  const [showAR, setShowAR] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((file: File) => {
@@ -233,10 +235,21 @@ function App() {
             <p>Modern GLB/GLTF/USDZ Visualization Engine</p>
           </div>
           {modelUrl && (
-            <button className="reset-button" onClick={handleReset}>
-              <Upload size={16} />
-              Yeni Model
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button"
+                className="premium-button" 
+                onClick={() => setShowAR(true)} 
+                style={{ background: 'var(--accent)', border: 'none', pointerEvents: 'auto' }}
+              >
+                <Camera size={18} />
+                AR Görünümü
+              </button>
+              <button className="reset-button" onClick={handleReset}>
+                <Upload size={16} />
+                Yeni Model
+              </button>
+            </div>
           )}
         </motion.div>
       </header>
@@ -381,6 +394,20 @@ function App() {
           </div>
         </motion.div>
       )}
+      <AnimatePresence>
+        {showAR && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <ARView 
+              modelUrl={modelUrl} 
+              onClose={() => setShowAR(false)} 
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
