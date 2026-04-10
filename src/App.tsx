@@ -238,9 +238,9 @@ function App() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
                 type="button"
-                className="premium-button" 
+                className="reset-button" 
                 onClick={() => setShowAR(true)} 
-                style={{ background: 'var(--accent)', border: 'none', pointerEvents: 'auto' }}
+                style={{ borderColor: 'rgba(0, 122, 255, 0.4)', color: '#007AFF' }}
               >
                 <Camera size={18} />
                 AR Görünümü

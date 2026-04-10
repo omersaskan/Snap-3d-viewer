@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Premium AR Experience</title>
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -34,6 +34,18 @@
         width: 100vw;
         height: 100vh;
         overflow: hidden;
+        background: #000;
+      }
+      #container video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        object-position: center !important;
+      }
+      #container canvas {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
       }
       #ui-overlay {
         position: fixed;
@@ -172,6 +184,31 @@
       import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
       import { MindARThree } from 'mindar-image-three';
 
+      // --- High-Quality Camera Hack ---
+      // MindAR'ın varsayılan düşük çözünürlüğünü aşmak için kamera isteklerine müdahale ediyoruz.
+      const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = async (constraints) => {
+        if (constraints && constraints.video) {
+          console.log("Kamera çözünürlüğü optimize ediliyor...", constraints);
+          // Genelde MindAR 640x480 ister, biz ideal olarak Full HD (1920x1080) talep ediyoruz.
+          // Cihaz desteklemiyorsa tarayıcı en yakın yüksek çözünürlüğü verecektir.
+          if (typeof constraints.video === 'boolean') {
+            constraints.video = {
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+              facingMode: "environment"
+            };
+          } else {
+            constraints.video.width = { ideal: 1920 };
+            constraints.video.height = { ideal: 1080 };
+            constraints.video.facingMode = constraints.video.facingMode || "environment";
+          }
+        }
+        return originalGetUserMedia(constraints);
+      };
+      // --------------------------------
+
+
       const queryParams = new URLSearchParams(window.location.search);
       const modelUrl = queryParams.get('model');
       
@@ -201,17 +238,40 @@
           const mindarThree = new MindARThree({
             container: document.querySelector("#container"),
             imageTargetSrc: '/assets/targets.mind?v=' + Date.now(),
+            uiLoading: "no",
+            uiScanning: "no",
+            uiError: "no",
+            filterMinCF: 0.0001,
+            filterBeta: 0.001,
           });
 
           const {renderer, scene, camera} = mindarThree;
 
-          renderer.setPixelRatio(window.devicePixelRatio);
+          // Görüntü kalitesi optimizasyonları (Maksimum Keskinlik)
+          renderer.outputEncoding = THREE.sRGBEncoding;
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          renderer.toneMappingExposure = 1.1;
+          renderer.physicallyCorrectLights = true;
+          renderer.antialias = true;
+          // Retina/High-DPI ekranlar için keskinliği artırıyoruz
+          const pixelRatio = window.devicePixelRatio;
+          renderer.setPixelRatio(Math.min(pixelRatio, 2)); 
           renderer.setSize(window.innerWidth, window.innerHeight);
 
-          scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-          const directorLight = new THREE.DirectionalLight(0xffffff, 1.2);
-          directorLight.position.set(2, 5, 2);
-          scene.add(directorLight);
+          // Gelişmiş Işıklandırma (Premium Look)
+          scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
+          
+          const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+          mainLight.position.set(2, 5, 2);
+          scene.add(mainLight);
+
+          const sideLight = new THREE.DirectionalLight(0xffffff, 0.8);
+          sideLight.position.set(-2, 2, -2);
+          scene.add(sideLight);
+
+          const fillLight = new THREE.DirectionalLight(0xffeebb, 0.5);
+          fillLight.position.set(0, -2, 0);
+          scene.add(fillLight);
 
           log("Model Yükleniyor...");
           const loader = new GLTFLoader();
@@ -227,6 +287,10 @@
 
               modelRef = gltf.scene;
               modelRef.traverse((node) => { if (node.isMesh) node.frustumCulled = false; });
+              
+              // Modeli işaretleyiciye (marker) paralel hale getiriyoruz (Masa üzerine oturması için)
+              modelRef.rotation.x = Math.PI / 2;
+              
               anchor.group.add(modelRef);
               
               statusText.innerText = "SİSTEM HAZIR";
