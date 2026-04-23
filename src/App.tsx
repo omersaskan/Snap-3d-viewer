@@ -36,6 +36,7 @@ function App() {
   const [wireframe, setWireframe] = useState(false)
   const [urlInputValue, setUrlInputValue] = useState('')
   const [showAR, setShowAR] = useState(false)
+  const [targetUrl, setTargetUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((file: File) => {
@@ -103,10 +104,10 @@ function App() {
     }
   }, [])
 
-  const loadModelFromJobId = useCallback(async (jobId: string) => {
+  const loadModelFromProductId = useCallback(async (productId: string) => {
     setIsLoading(true)
     setError(null)
-    console.log('Fetching job details for:', jobId)
+    console.log('Fetching product details for:', productId)
 
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -116,33 +117,38 @@ function App() {
         throw new Error('Supabase configuration is missing in environments.')
       }
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/jobs?id=eq.${jobId}&select=*`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/products?id=eq.${productId}&select=*,jobs(*),targets(*)`, {
         headers: {
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`
         }
       })
 
-      if (!response.ok) throw new Error(`Failed to fetch job details: ${response.statusText}`)
+      if (!response.ok) throw new Error(`Failed to fetch product details: ${response.statusText}`)
 
-      const jobs = await response.json()
+      const products = await response.json()
       
-      if (!jobs || jobs.length === 0) {
-        throw new Error('İlgili iş (job) bulunamadı.')
+      if (!products || products.length === 0) {
+        throw new Error('İlgili ürün bulunamadı.')
       }
 
-      const job = jobs[0]
-      const glbUrl = job.assets?.modelUrls?.glbUrl
+      const product = products[0]
+      const job = product.jobs?.[0]
+      const target = product.targets
+      
+      const glbUrl = job?.assets?.modelUrls?.glbUrl
+      const productTargetUrl = target?.target_url
 
       if (!glbUrl) {
         throw new Error('Model URL si (glbUrl) bulunamadı.')
       }
 
+      setTargetUrl(productTargetUrl || null)
       await loadModelFromUrl(glbUrl)
     } catch (err: unknown) {
-      console.error('Error loading job:', err)
+      console.error('Error loading product:', err)
       const message = err instanceof Error ? err.message : String(err)
-      setError(`Model getirilemedi: ${message}`)
+      setError(`Ürün getirilemedi: ${message}`)
       setIsLoading(false)
     }
   }, [loadModelFromUrl])
@@ -150,14 +156,14 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const modelParam = params.get('model')
-    const jobIdParam = params.get('job_id')
+    const productIdParam = params.get('product_id')
     
-    if (jobIdParam) {
-      loadModelFromJobId(jobIdParam)
+    if (productIdParam) {
+      loadModelFromProductId(productIdParam)
     } else if (modelParam) {
       loadModelFromUrl(modelParam)
     }
-  }, [loadModelFromUrl, loadModelFromJobId])
+  }, [loadModelFromUrl, loadModelFromProductId])
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -403,6 +409,7 @@ function App() {
           >
             <ARView 
               modelUrl={modelUrl} 
+              targetUrl={targetUrl}
               onClose={() => setShowAR(false)} 
             />
           </motion.div>

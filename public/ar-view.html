@@ -211,6 +211,7 @@
 
       const queryParams = new URLSearchParams(window.location.search);
       const modelUrl = queryParams.get('model');
+      const targetUrl = queryParams.get('target');
       
       document.getElementById('close-btn').addEventListener('click', () => {
         if (window.parent !== window) {
@@ -237,7 +238,7 @@
           log("AR Motoru Başlatılıyor...");
           const mindarThree = new MindARThree({
             container: document.querySelector("#container"),
-            imageTargetSrc: '/assets/targets.mind?v=' + Date.now(),
+            imageTargetSrc: (targetUrl || '/assets/targets.mind') + '?v=' + Date.now(),
             uiLoading: "no",
             uiScanning: "no",
             uiError: "no",

@@ -2,10 +2,11 @@ import React, { useEffect } from 'react';
 
 interface ARViewProps {
   modelUrl: string | null;
+  targetUrl: string | null;
   onClose: () => void;
 }
 
-export const ARView: React.FC<ARViewProps> = ({ modelUrl, onClose }) => {
+export const ARView: React.FC<ARViewProps> = ({ modelUrl, targetUrl, onClose }) => {
   useEffect(() => {
     console.log('ARView Mounted. modelUrl:', modelUrl);
     
@@ -29,7 +30,10 @@ export const ARView: React.FC<ARViewProps> = ({ modelUrl, onClose }) => {
   }
 
   const encodedModelUrl = encodeURIComponent(modelUrl);
-  const iframeSrc = `/ar-view.html?model=${encodedModelUrl}`;
+  let iframeSrc = `/ar-view.html?model=${encodedModelUrl}`;
+  if (targetUrl) {
+    iframeSrc += `&target=${encodeURIComponent(targetUrl)}`;
+  }
   console.log('Setting iframe src to:', iframeSrc);
 
   return (
