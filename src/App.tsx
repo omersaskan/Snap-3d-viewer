@@ -127,17 +127,22 @@ function App() {
       if (!response.ok) throw new Error(`Failed to fetch product details: ${response.statusText}`)
 
       const products = await response.json()
+      console.log('Fetched product data:', products[0])
       
       if (!products || products.length === 0) {
         throw new Error('İlgili ürün bulunamadı.')
       }
 
       const product = products[0]
-      const job = product.jobs?.[0]
-      const target = product.targets
       
-      const glbUrl = job?.assets?.modelUrls?.glbUrl
+      // Supabase can return joined tables as arrays or single objects depending on the relationship
+      const job = Array.isArray(product.jobs) ? product.jobs[0] : product.jobs
+      const target = Array.isArray(product.targets) ? product.targets[0] : product.targets
+      
+      const glbUrl = job?.assets?.modelUrls?.glbUrl || product.model_url
       const productTargetUrl = target?.target_url
+      
+      console.log('Extracted URLs:', { glbUrl, productTargetUrl })
 
       if (!glbUrl) {
         throw new Error('Model URL si (glbUrl) bulunamadı.')
